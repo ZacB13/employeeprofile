@@ -7,44 +7,45 @@
   <!-- Cropper.js CSS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet"/>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-    .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .logo { text-align: center; margin-bottom: 10px; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .logo { text-align: center; margin-bottom: 15px; }
     .logo img { max-width: 150px; }
-    h1 { text-align: center; color: #00477A; margin: 10px 0; letter-spacing: 1px; }
-    .centered { text-align: center; margin-bottom: 20px; }
-    .row { display: flex; gap: 20px; }
-    .photo-box {
-      width: 180px; height: 180px;
-      border: 2px dashed #ccc;
-      display: flex; align-items: center; justify-content: center;
-      position: relative;
-      background: #fafafa;
-      overflow: hidden;
-    }
-    .photo-box img { max-width: 100%; max-height: 100%; }
+    h1 { text-align: center; color: #00477A; margin: 10px 0 20px; letter-spacing: 1px; }
+    .centered { text-align: center; margin-bottom: 15px; }
+    .centered label { display: inline-block; width: 150px; font-weight: bold; text-align: right; margin-right: 10px; }
+    .centered input { width: calc(100% - 180px); padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    .row { display: flex; gap: 20px; margin-bottom: 20px; }
+    .photo-box { width: 180px; height: 180px; border: 2px dashed #ccc; background: #fafafa; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+    .photo-box img { max-width: 100%; max-height: 100%; display: block; }
     .photo-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .crop-controls { text-align: center; margin-top: 10px; }
+    .crop-btn, .submit-btn { padding: 8px 16px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+    .crop-btn { background-color: #00477A; color: #fff; margin-right: 8px; }
+    .crop-btn:disabled { background: #ccc; cursor: default; }
+    .submit-btn { margin-top: 30px; width: 100%; background-color: #00477A; color: #fff; }
+    .submit-btn:hover { background-color: #003b60; }
+    .submit-btn:active { transform: scale(0.98); }
     .fields { flex: 1; }
     .fields label { display: block; font-weight: bold; margin-top: 10px; }
     .fields input { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
     .section { margin-top: 20px; }
     .section label { font-weight: bold; display: block; margin-bottom: 6px; }
     .section textarea { width: 100%; padding: 8px; height: 80px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box; background: #fafafa; }
-    .submit-btn { margin-top: 30px; display: block; width: 100%; padding: 12px; font-size: 16px; background-color: #00477A; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    .submit-btn:active { background-color: #003b60; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="logo">
-      <!-- Rename your logo file to logo.png and place it alongside this HTML -->
-      <img src="logo.png" alt="Lake Glass & Mirror Logo">
+      <img src="logo.jpg" alt="Lake Glass & Mirror Logo">
     </div>
     <div class="centered">
-      <label><strong>General Contractor:</strong></label>
-      <input type="text" id="gc-name" name="gc-name" style="width: 45%;" placeholder="Company name">
-      <label style="margin-left: 20px;"><strong>Job Name:</strong></label>
-      <input type="text" id="job-name" name="job-name" style="width: 45%;" placeholder="Job name">
+      <label for="gc-name">General Contractor:</label>
+      <input type="text" id="gc-name" name="gc-name" placeholder="Company name">
+    </div>
+    <div class="centered">
+      <label for="job-name">Job Name:</label>
+      <input type="text" id="job-name" name="job-name" placeholder="Job name">
     </div>
     <h1>EMPLOYEE PROFILE</h1>
     <form id="profile-form">
@@ -53,6 +54,9 @@
           <div class="photo-box" id="photo-box">
             <span>Click to add &amp; crop photo</span>
             <input type="file" accept="image/*" id="photo-input" class="photo-input">
+          </div>
+          <div class="crop-controls">
+            <button type="button" id="crop-accept-btn" class="crop-btn" disabled>Accept Crop</button>
           </div>
         </div>
         <div class="fields">
@@ -89,13 +93,16 @@
   </div>
   <!-- Cropper.js JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-  <!-- jsPDF -->
+  <!-- jsPDF UMD build -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       let cropper;
+      let croppedDataURL;
       const photoInput = document.getElementById('photo-input');
       const photoBox = document.getElementById('photo-box');
+      const acceptBtn = document.getElementById('crop-accept-btn');
+
       photoInput.addEventListener('change', function() {
         const file = this.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -105,62 +112,70 @@
           img.id = 'photo-preview';
           img.src = e.target.result;
           photoBox.appendChild(img);
-          cropper = new Cropper(img, {
-            aspectRatio: 1,
-            viewMode: 1,
-            autoCropArea: 1,
-            background: false,
-            movable: true,
-            zoomable: true
-          });
+          cropper = new Cropper(img, { aspectRatio: 1, viewMode: 1, autoCropArea: 1, background: false, movable: true, zoomable: true });
+          acceptBtn.disabled = false;
         };
         reader.readAsDataURL(file);
       });
 
+      acceptBtn.addEventListener('click', function() {
+        if (!cropper) return;
+        const canvas = cropper.getCroppedCanvas({ width: 200, height: 200 });
+        croppedDataURL = canvas.toDataURL('image/jpeg');
+        photoBox.innerHTML = '';
+        const img = document.createElement('img'); img.src = croppedDataURL;
+        photoBox.appendChild(img);
+        cropper.destroy(); cropper = null;
+        acceptBtn.disabled = true;
+      });
+
       document.getElementById('submit-btn').addEventListener('click', function() {
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        // Add logo
-        const logo = new Image();
-        logo.onload = function() {
-          doc.addImage(logo, 'PNG', 20, 10, 40, 40);
-          generateContent();
-        };
-        logo.src = 'logo.png';
+        const doc = new jsPDF({ unit: 'pt', format: 'letter' });
 
-        function generateContent() {
-          // Header text
+        // Header
+        const logoImg = new Image();
+        logoImg.src = 'logo.jpg';
+        logoImg.onload = () => { doc.addImage(logoImg, 'JPG', 40, 30, 60, 60); drawContent(); };
+        logoImg.onerror = drawContent;
+
+        function drawContent() {
           doc.setFontSize(12);
-          doc.text(`General Contractor: ${document.getElementById('gc-name').value}`, 70, 20);
-          doc.text(`Job Name: ${document.getElementById('job-name').value}`, 70, 28);
+          doc.text(`General Contractor: ${document.getElementById('gc-name').value}`, 120, 50);
+          doc.text(`Job Name: ${document.getElementById('job-name').value}`, 120, 68);
           doc.setFontSize(16);
-          doc.text('EMPLOYEE PROFILE', 105, 45, null, null, 'center');
-          // Cropped photo
-          if (cropper) {
-            const canvas = cropper.getCroppedCanvas({ width: 180, height: 180 });
-            const photoData = canvas.toDataURL('image/jpeg');
-            doc.addImage(photoData, 'JPEG', 20, 55, 40, 40);
+          doc.text('EMPLOYEE PROFILE', doc.internal.pageSize.getWidth()/2, 100, { align: 'center' });
+
+          if (croppedDataURL) {
+            doc.addImage(croppedDataURL, 'JPEG', 40, 120, 80, 80);
           }
-          // Fields
+
           doc.setFontSize(12);
-          const labels = ['Name', 'Contact Info', 'Years with LG&M', 'Years in Industry', 'Position'];
-          labels.forEach((label, i) => {
-            const val = document.getElementById(label.toLowerCase().replace(/ /g, '-')).value || '';
-            doc.text(`${label}: ${val}`, 70, 55 + i * 8);
+          const fields = [
+            { label: 'Name', id: 'emp-name' },
+            { label: 'Contact Info', id: 'emp-contact' },
+            { label: 'Years with LG&M', id: 'years-lgm' },
+            { label: 'Years in Industry', id: 'years-industry' },
+            { label: 'Position', id: 'position' }
+          ];
+          fields.forEach((f, i) => {
+            const y = 120 + i*14;
+            const val = document.getElementById(f.id).value || '';
+            doc.text(`${f.label}: ${val}`, 140, y + 10);
           });
-          let y = 55 + labels.length * 8 + 10;
-          // Sections
-          ['Notable Jobs', 'Certificates', 'Qualifications', 'Other Notes'].forEach(sec => {
-            doc.setFont(undefined, 'bold');
-            doc.text(sec, 20, y);
+
+          let y = 220;
+          ['notable-jobs','certificates','qualifications','other-notes'].forEach((id) => {
+            const heading = id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            doc.setFont(undefined, 'bold'); doc.text(heading, 40, y);
             doc.setFont(undefined, 'normal');
-            const text = document.getElementById(sec.toLowerCase().replace(/ /g, '-')).value || '';
-            const lines = doc.splitTextToSize(text, 170);
-            doc.text(lines, 20, y + 6);
-            y += lines.length * 6 + 12;
+            const text = document.getElementById(id).value || '';
+            const lines = doc.splitTextToSize(text, doc.internal.pageSize.getWidth() - 80);
+            doc.text(lines, 40, y + 12);
+            y += lines.length * 12 + 20;
           });
-          // Save and email
-          const name = document.getElementById('emp-name').value || 'form';
+
+          const name = document.getElementById('emp-name').value || 'profile';
           doc.save(`Employee_Profile_${name}.pdf`);
           window.location.href = `mailto:zacb@lakeglassandmirror.com?subject=Employee Profile - ${encodeURIComponent(name)}`;
         }
@@ -169,3 +184,5 @@
   </script>
 </body>
 </html>
+
+
